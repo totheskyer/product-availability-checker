@@ -9,18 +9,23 @@ class PAC_Loader {
 	private $frontend;
 
 	public function __construct() {
-		$this->admin    = new PAC_Admin();
+		// Only instantiate admin if WooCommerce is available
+		if ( class_exists( 'PAC_Admin' ) ) {
+			$this->admin = new PAC_Admin();
+		}
 		$this->frontend = new PAC_Frontend();
 	}
 
 	public function run() {
-		// Admin (settings page under WooCommerce)
-		add_filter( 'woocommerce_get_settings_pages', array( $this->admin, 'register_settings_page' ) );
+		// Admin (settings page under WooCommerce) - only if admin is available
+		if ( $this->admin ) {
+			add_filter( 'woocommerce_get_settings_pages', array( $this->admin, 'register_settings_page' ) );
 
-		// Admin CRUD handlers (add/edit/delete entries)
-		add_action( 'admin_post_pac_add_zip', array( $this->admin, 'handle_add_zip' ) );
-		add_action( 'admin_post_pac_edit_zip', array( $this->admin, 'handle_edit_zip' ) );
-		add_action( 'admin_post_pac_delete_zip', array( $this->admin, 'handle_delete_zip' ) );
+			// Admin CRUD handlers (add/edit/delete entries)
+			add_action( 'admin_post_pac_add_zip', array( $this->admin, 'handle_add_zip' ) );
+			add_action( 'admin_post_pac_edit_zip', array( $this->admin, 'handle_edit_zip' ) );
+			add_action( 'admin_post_pac_delete_zip', array( $this->admin, 'handle_delete_zip' ) );
+		}
 
 		// Frontend: enqueue, render UI, AJAX
 		add_action( 'wp_enqueue_scripts', array( $this->frontend, 'enqueue_assets' ) );

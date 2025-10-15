@@ -3,8 +3,25 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; 
 }
 
-if ( ! class_exists( 'WC_Settings_Page', false ) && class_exists( 'WooCommerce', false ) ) {
-	require_once WC_ABSPATH . 'includes/admin/settings/class-wc-settings-page.php';
+// Only load this class if WooCommerce is active
+if ( ! class_exists( 'WooCommerce' ) ) {
+    return;
+}
+
+// Ensure WC_Settings_Page is available
+if ( ! class_exists( 'WC_Settings_Page', false ) ) {
+    // Try to load the WooCommerce settings page class
+    if ( function_exists( 'WC' ) && method_exists( WC(), 'plugin_path' ) ) {
+        $wc_path = WC()->plugin_path();
+        $settings_file = $wc_path . '/includes/admin/settings/class-wc-settings-page.php';
+        if ( file_exists( $settings_file ) ) {
+            require_once $settings_file;
+        } else {
+            return; // WooCommerce not properly loaded
+        }
+    } else {
+        return; // WooCommerce not properly loaded
+    }
 }
 
 class PAC_Admin extends WC_Settings_Page {
