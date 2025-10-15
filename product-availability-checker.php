@@ -10,24 +10,28 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit; // Exit if accessed directly
+	exit;
 }
 
-define( 'PAC_VERSION', '1.1.0' );
+define( 'PAC_VERSION', '1.0.0' );
 define( 'PAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PAC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+define( 'PAC_OPTION_KEY', 'pac_zip_rules' ); // stores array of rules
 
+// Dependencies
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-activator.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-deactivator.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-loader.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-admin.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-frontend.php';
 
+// Hooks
 register_activation_hook( __FILE__, array( 'PAC_Activator', 'activate' ) );
 register_deactivation_hook( __FILE__, array( 'PAC_Deactivator', 'deactivate' ) );
 
-function run_pac_plugin() {
+// Bootstrap
+function pac_run() {
 	$plugin = new PAC_Loader();
 	$plugin->run();
 }
-run_pac_plugin();
+pac_run();
