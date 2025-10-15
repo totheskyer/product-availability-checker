@@ -1,0 +1,4 @@
+/* Basic styling for PAC form */
+.pac-form { margin: 10px 0; }
+.pac-form input, .pac-form button { padding: 6px; margin-right: 6px; }
+.pac-result { margin-top: 8px; }
