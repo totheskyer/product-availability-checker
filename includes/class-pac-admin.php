@@ -138,11 +138,11 @@ class PAC_Admin {
 			);
 		}
 
-		update_option( self::OPTION_KEY, $sanitized, false );
+		update_option( PAC_OPTION_KEY, $sanitized, false );
 	}
 
 	protected function get_rules() {
-		$rules = get_option( self::OPTION_KEY, array() );
+		$rules = get_option( PAC_OPTION_KEY, array() );
 		return is_array( $rules ) ? $rules : array();
 	}
 }

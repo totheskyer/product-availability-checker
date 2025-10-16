@@ -1,4 +1,56 @@
 /* Basic styling for PAC form */
-.pac-form { margin: 10px 0; }
-.pac-form input, .pac-form button { padding: 6px; margin-right: 6px; }
-.pac-result { margin-top: 8px; }
+.pac-zip-checker {
+	margin: 20px 0;
+	padding: 15px;
+	background: #f7f7f7;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+}
+
+.pac-label {
+	display: block;
+	margin-bottom: 8px;
+	font-weight: 600;
+	font-size: 16px;
+}
+
+.pac-description {
+	margin: 0 0 12px 0;
+	color: #666;
+	font-size: 14px;
+}
+
+.pac-row {
+	display: flex;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+
+.pac-input {
+	flex: 1;
+	padding: 8px 12px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 14px;
+}
+
+.pac-result {
+	margin-top: 10px;
+	padding: 10px;
+	border-radius: 4px;
+	font-weight: 500;
+}
+
+.pac-result:not(:empty) {
+	background: #e7f5fe;
+	border: 1px solid #2271b1;
+}
+
+/* Disabled add-to-cart button styling */
+button.pac-disabled,
+button.pac-disabled:hover,
+button.pac-disabled:focus {
+	opacity: 0.5;
+	cursor: not-allowed !important;
+	pointer-events: none;
+}

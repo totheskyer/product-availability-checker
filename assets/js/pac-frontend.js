@@ -24,6 +24,9 @@
 			}
 		}
 
+		// Disable add-to-cart button by default until availability is checked
+		setAddToCartDisabled(true);
+
 		btn && btn.addEventListener('click', function () {
 			var zip = (input && input.value || '').trim();
 			if (!zip) {

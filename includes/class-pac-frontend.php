@@ -44,11 +44,14 @@ class PAC_Frontend {
 		?>
 		<div class="pac-zip-checker" data-pac>
 			<label for="pac-zip-input" class="pac-label">
-				<?php esc_html_e( 'Enter your ZIP code:', 'product-availability-checker' ); ?>
+				<?php esc_html_e( 'Check Availability', 'product-availability-checker' ); ?>
 			</label>
+			<p class="pac-description">
+				<?php esc_html_e( 'Please check product availability in your area before adding to cart.', 'product-availability-checker' ); ?>
+			</p>
 			<div class="pac-row">
-				<input type="text" id="pac-zip-input" class="pac-input" placeholder="<?php esc_attr_e( 'e.g. 90210', 'product-availability-checker' ); ?>" />
-				<button type="button" id="pac-zip-btn" class="button"><?php esc_html_e( 'Check Availability', 'product-availability-checker' ); ?></button>
+				<input type="text" id="pac-zip-input" class="pac-input" placeholder="<?php esc_attr_e( 'Enter ZIP code', 'product-availability-checker' ); ?>" />
+				<button type="button" id="pac-zip-btn" class="button"><?php esc_html_e( 'Check', 'product-availability-checker' ); ?></button>
 			</div>
 			<div id="pac-zip-result" class="pac-result" aria-live="polite"></div>
 		</div>
@@ -72,21 +75,33 @@ class PAC_Frontend {
 			$rules = array();
 		}
 
-		// Find rule by exact ZIP match.
+		// Debug logging
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'PAC Debug - ZIP checked: ' . $zip );
+			error_log( 'PAC Debug - Rules found: ' . print_r( $rules, true ) );
+		}
+
+		// Find rule by exact ZIP match (ZIP is the array key)
 		$found = null;
-		foreach ( $rules as $rule ) {
-			if ( isset( $rule['zip'] ) && $zip === $rule['zip'] ) {
-				$found = $rule;
-				break;
-			}
+		if ( isset( $rules[ $zip ] ) ) {
+			$found = $rules[ $zip ];
 		}
 
 		if ( null === $found ) {
+			// Debug logging
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'PAC Debug - No rule found for ZIP: ' . $zip );
+			}
 			// Not specified means treat as available? You can change behavior.
 			wp_send_json_success( array(
 				'available' => true,
 				'message'   => __( 'No restriction found for this ZIP. Available.', 'product-availability-checker' ),
 			) );
+		}
+
+		// Debug logging
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'PAC Debug - Rule found: ' . print_r( $found, true ) );
 		}
 
 		$is_available = ( isset( $found['status'] ) && 'unavailable' === $found['status'] ) ? false : true;
