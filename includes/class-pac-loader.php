@@ -17,14 +17,9 @@ class PAC_Loader {
 	}
 
 	public function run() {
-		// Admin (settings page under WooCommerce) - only if admin is available
-		if ( $this->admin ) {
-			add_filter( 'woocommerce_get_settings_pages', array( $this->admin, 'register_settings_page' ) );
-
-			// Admin CRUD handlers (add/edit/delete entries)
-			add_action( 'admin_post_pac_add_zip', array( $this->admin, 'handle_add_zip' ) );
-			add_action( 'admin_post_pac_edit_zip', array( $this->admin, 'handle_edit_zip' ) );
-			add_action( 'admin_post_pac_delete_zip', array( $this->admin, 'handle_delete_zip' ) );
+		// Admin hooks
+		if ( $this->admin && is_admin() ) {
+			$this->admin->register_hooks();
 		}
 
 		// Frontend: enqueue, render UI, AJAX

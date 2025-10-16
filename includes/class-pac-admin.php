@@ -1,262 +1,148 @@
 <?php
-if ( ! defined( 'ABSPATH' ) ) { 
-    exit; 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
-// Only load this class if WooCommerce is active
-if ( ! class_exists( 'WooCommerce' ) ) {
-    return;
-}
+class PAC_Admin {
+	const OPTION_KEY = 'pac_rules';
+	const NONCE_ACTION = 'pac_availability_save';
 
-// Ensure WC_Settings_Page is available
-if ( ! class_exists( 'WC_Settings_Page', false ) ) {
-    // Try to load the WooCommerce settings page class
-    if ( function_exists( 'WC' ) && method_exists( WC(), 'plugin_path' ) ) {
-        $wc_path = WC()->plugin_path();
-        $settings_file = $wc_path . '/includes/admin/settings/class-wc-settings-page.php';
-        if ( file_exists( $settings_file ) ) {
-            require_once $settings_file;
-        } else {
-            return; // WooCommerce not properly loaded
-        }
-    } else {
-        return; // WooCommerce not properly loaded
-    }
-}
-
-class PAC_Admin extends WC_Settings_Page {
-
-	public function __construct() {
-		$this->id    = 'pac_availability';
-		$this->label = __( 'Availability', 'product-availability-checker' );
-		parent::__construct();
+	public function register_hooks() {
+		// Add the tab to WooCommerce settings
+		add_filter( 'woocommerce_settings_tabs_array', array( $this, 'add_settings_tab' ), 50 );
+		// Render the tab content
+		add_action( 'woocommerce_settings_tabs_pac_availability', array( $this, 'render_settings_tab' ) );
+		// Handle form submission
+		add_action( 'woocommerce_update_options_pac_availability', array( $this, 'handle_form_submit' ) );
 	}
 
-	/**
-	 * Register settings page into WooCommerce.
-	 *
-	 * @param array $pages
-	 * @return array
-	 */
-	public function register_settings_page( $pages ) {
-		$pages[] = $this;
-		return $pages;
+	public function add_settings_tab( $tabs ) {
+		$tabs['pac_availability'] = esc_html__( 'PAC Availability', 'product-availability-checker' );
+		return $tabs;
 	}
 
-	/**
-	 * We don’t use standard WC fields. We render our own table + forms.
-	 */
-	public function get_settings() {
-		return array(); // no auto fields
-	}
-
-	/**
-	 * Output settings page content.
-	 */
-	public function output() {
+	public function render_settings_tab() {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_die( esc_html__( 'You do not have permission to manage availability.', 'product-availability-checker' ) );
+			wp_die( esc_html__( 'You do not have permission to access this page.', 'product-availability-checker' ) );
 		}
 
-		$rules = get_option( PAC_OPTION_KEY, array() );
-		if ( ! is_array( $rules ) ) {
-			$rules = array();
-		}
-
-		// Normalize rules as keyed by ZIP for uniqueness.
-		$rules = array_values( $rules ); // ensure indexed for display
+		$rules = $this->get_rules();
 		?>
-		<div class="wrap woocommerce">
-			<h1><?php esc_html_e( 'ZIP-based Availability', 'product-availability-checker' ); ?></h1>
+		<h2><?php echo esc_html__( 'ZIP Code Availability', 'product-availability-checker' ); ?></h2>
+		<p><?php echo esc_html__( 'Manage availability by individual ZIP codes. Each entry can be marked Available or Unavailable, with an optional custom message.', 'product-availability-checker' ); ?></p>
 
-			<h2><?php esc_html_e( 'Existing ZIP Rules', 'product-availability-checker' ); ?></h2>
-			<table class="widefat striped">
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=wc-settings&tab=pac_availability' ) ); ?>">
+			<?php wp_nonce_field( self::NONCE_ACTION, '_pac_nonce' ); ?>
+			<?php wp_nonce_field( 'woocommerce-settings' ); ?>
+			<table class="widefat fixed striped">
 				<thead>
 					<tr>
-						<th><?php esc_html_e( 'ZIP', 'product-availability-checker' ); ?></th>
-						<th><?php esc_html_e( 'Status', 'product-availability-checker' ); ?></th>
-						<th><?php esc_html_e( 'Custom Message', 'product-availability-checker' ); ?></th>
-						<th><?php esc_html_e( 'Actions', 'product-availability-checker' ); ?></th>
+						<th style="width: 20%;"><?php echo esc_html__( 'ZIP Code', 'product-availability-checker' ); ?></th>
+						<th style="width: 15%;"><?php echo esc_html__( 'Status', 'product-availability-checker' ); ?></th>
+						<th><?php echo esc_html__( 'Custom Message (optional)', 'product-availability-checker' ); ?></th>
+						<th style="width: 10%;"><?php echo esc_html__( 'Actions', 'product-availability-checker' ); ?></th>
 					</tr>
 				</thead>
 				<tbody>
-				<?php if ( empty( $rules ) ) : ?>
-					<tr><td colspan="4"><?php esc_html_e( 'No entries yet.', 'product-availability-checker' ); ?></td></tr>
-				<?php else : ?>
-					<?php foreach ( $rules as $rule ) : ?>
-						<tr>
-							<td><code><?php echo esc_html( $rule['zip'] ); ?></code></td>
-							<td><?php echo ( 'available' === $rule['status'] ) ? esc_html__( 'Available', 'product-availability-checker' ) : esc_html__( 'Unavailable', 'product-availability-checker' ); ?></td>
-							<td><?php echo esc_html( $rule['message'] ); ?></td>
-							<td>
-								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;">
-									<?php wp_nonce_field( 'pac_delete_zip', 'pac_nonce' ); ?>
-									<input type="hidden" name="action" value="pac_delete_zip">
-									<input type="hidden" name="zip" value="<?php echo esc_attr( $rule['zip'] ); ?>">
-									<?php submit_button( __( 'Delete', 'product-availability-checker' ), 'delete small', '', false ); ?>
-								</form>
-
-								<details style="display:inline-block; margin-left:8px;">
-									<summary><?php esc_html_e( 'Edit', 'product-availability-checker' ); ?></summary>
-									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:6px;">
-										<?php wp_nonce_field( 'pac_edit_zip', 'pac_nonce' ); ?>
-										<input type="hidden" name="action" value="pac_edit_zip">
-										<input type="hidden" name="original_zip" value="<?php echo esc_attr( $rule['zip'] ); ?>">
-
-										<p><label>
-											<?php esc_html_e( 'ZIP', 'product-availability-checker' ); ?><br>
-											<input type="text" name="zip" value="<?php echo esc_attr( $rule['zip'] ); ?>" required>
-										</label></p>
-
-										<p><label>
-											<?php esc_html_e( 'Status', 'product-availability-checker' ); ?><br>
-											<select name="status">
-												<option value="available" <?php selected( $rule['status'], 'available' ); ?>><?php esc_html_e( 'Available', 'product-availability-checker' ); ?></option>
-												<option value="unavailable" <?php selected( $rule['status'], 'unavailable' ); ?>><?php esc_html_e( 'Unavailable', 'product-availability-checker' ); ?></option>
-											</select>
-										</label></p>
-
-										<p><label>
-											<?php esc_html_e( 'Custom Message (optional)', 'product-availability-checker' ); ?><br>
-											<input type="text" name="message" value="<?php echo esc_attr( $rule['message'] ); ?>">
-										</label></p>
-
-										<?php submit_button( __( 'Save Changes', 'product-availability-checker' ) ); ?>
-									</form>
-								</details>
-							</td>
-						</tr>
-					<?php endforeach; ?>
-				<?php endif; ?>
-				</tbody>
-			</table>
-
-			<h2 style="margin-top:24px;"><?php esc_html_e( 'Add New ZIP Rule', 'product-availability-checker' ); ?></h2>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<?php wp_nonce_field( 'pac_add_zip', 'pac_nonce' ); ?>
-				<input type="hidden" name="action" value="pac_add_zip">
-
-				<table class="form-table" role="presentation">
+					<?php if ( ! empty( $rules ) ) : $i = 0; foreach ( $rules as $zip => $data ) : ?>
 					<tr>
-						<th scope="row"><label for="pac_zip"><?php esc_html_e( 'ZIP', 'product-availability-checker' ); ?></label></th>
-						<td><input type="text" id="pac_zip" name="zip" required placeholder="<?php esc_attr_e( 'e.g. 90210', 'product-availability-checker' ); ?>"></td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="pac_status"><?php esc_html_e( 'Status', 'product-availability-checker' ); ?></label></th>
 						<td>
-							<select id="pac_status" name="status">
-								<option value="available"><?php esc_html_e( 'Available', 'product-availability-checker' ); ?></option>
-								<option value="unavailable"><?php esc_html_e( 'Unavailable', 'product-availability-checker' ); ?></option>
+							<input type="text" name="rules[<?php echo esc_attr( $i ); ?>][zip]" value="<?php echo esc_attr( $zip ); ?>" maxlength="20" class="regular-text" />
+						</td>
+						<td>
+							<select name="rules[<?php echo esc_attr( $i ); ?>][status]">
+								<option value="available" <?php selected( isset( $data['status'] ) ? $data['status'] : '', 'available' ); ?>><?php echo esc_html__( 'Available', 'product-availability-checker' ); ?></option>
+								<option value="unavailable" <?php selected( isset( $data['status'] ) ? $data['status'] : '', 'unavailable' ); ?>><?php echo esc_html__( 'Unavailable', 'product-availability-checker' ); ?></option>
 							</select>
 						</td>
+						<td>
+							<input type="text" name="rules[<?php echo esc_attr( $i ); ?>][message]" value="<?php echo esc_attr( isset( $data['message'] ) ? $data['message'] : '' ); ?>" class="regular-text" />
+						</td>
+						<td>
+							<button type="button" class="button button-secondary" onclick="this.closest('tr').remove();"><?php echo esc_html__( 'Delete', 'product-availability-checker' ); ?></button>
+						</td>
 					</tr>
-					<tr>
-						<th scope="row"><label for="pac_message"><?php esc_html_e( 'Custom Message', 'product-availability-checker' ); ?></label></th>
-						<td><input type="text" id="pac_message" name="message" placeholder="<?php esc_attr_e( 'Optional note shown on product page', 'product-availability-checker' ); ?>"></td>
+					<?php $i++; endforeach; endif; ?>
+					<tr class="new-row-template" style="display:none;">
+						<td>
+							<input type="text" name="rules[__INDEX__][zip]" value="" maxlength="20" class="regular-text" />
+						</td>
+						<td>
+							<select name="rules[__INDEX__][status]">
+								<option value="available"><?php echo esc_html__( 'Available', 'product-availability-checker' ); ?></option>
+								<option value="unavailable"><?php echo esc_html__( 'Unavailable', 'product-availability-checker' ); ?></option>
+							</select>
+						</td>
+						<td>
+							<input type="text" name="rules[__INDEX__][message]" value="" class="regular-text" />
+						</td>
+						<td>
+							<button type="button" class="button button-secondary" onclick="this.closest('tr').remove();"><?php echo esc_html__( 'Delete', 'product-availability-checker' ); ?></button>
+						</td>
 					</tr>
-				</table>
-
-				<?php submit_button( __( 'Add ZIP Rule', 'product-availability-checker' ) ); ?>
-			</form>
-		</div>
+				</tbody>
+			</table>
+			<p>
+				<button type="button" class="button" onclick="pacAddRow()"><?php echo esc_html__( 'Add Row', 'product-availability-checker' ); ?></button>
+			</p>
+			<p class="submit">
+				<button type="submit" class="button-primary" name="save" value="1"><?php echo esc_html__( 'Save changes', 'product-availability-checker' ); ?></button>
+			</p>
+		</form>
+		
+		<script type="text/javascript">
+		var pacRowIndex = <?php echo isset( $i ) ? $i : 0; ?>;
+		function pacAddRow() {
+			var template = document.querySelector('.new-row-template');
+			if ( template ) {
+				var tbody = template.closest('tbody');
+				var newRow = template.cloneNode(true);
+				newRow.style.display = '';
+				newRow.classList.remove('new-row-template');
+				newRow.innerHTML = newRow.innerHTML.replace(/__INDEX__/g, pacRowIndex++);
+				tbody.insertBefore(newRow, template);
+			}
+		}
+		</script>
 		<?php
 	}
 
-	/**
-	 * CRUD handlers
-	 */
-	public function handle_add_zip() {
-		$this->assert_admin_cap_and_nonce( 'pac_add_zip' );
-
-		$zip     = isset( $_POST['zip'] ) ? sanitize_text_field( wp_unslash( $_POST['zip'] ) ) : '';
-		$status  = isset( $_POST['status'] ) ? sanitize_text_field( wp_unslash( $_POST['status'] ) ) : 'available';
-		$message = isset( $_POST['message'] ) ? sanitize_text_field( wp_unslash( $_POST['message'] ) ) : '';
-
-		if ( '' === $zip ) {
-			$this->redirect_settings();
-		}
-
-		$rules = $this->load_rules_indexed();
-		$rules[ $zip ] = array(
-			'zip'     => $zip,
-			'status'  => ( 'unavailable' === $status ) ? 'unavailable' : 'available',
-			'message' => $message,
-		);
-
-		update_option( PAC_OPTION_KEY, array_values( $rules ) );
-		$this->redirect_settings();
-	}
-
-	public function handle_edit_zip() {
-		$this->assert_admin_cap_and_nonce( 'pac_edit_zip' );
-
-		$original_zip = isset( $_POST['original_zip'] ) ? sanitize_text_field( wp_unslash( $_POST['original_zip'] ) ) : '';
-		$zip          = isset( $_POST['zip'] ) ? sanitize_text_field( wp_unslash( $_POST['zip'] ) ) : '';
-		$status       = isset( $_POST['status'] ) ? sanitize_text_field( wp_unslash( $_POST['status'] ) ) : 'available';
-		$message      = isset( $_POST['message'] ) ? sanitize_text_field( wp_unslash( $_POST['message'] ) ) : '';
-
-		if ( '' === $original_zip || '' === $zip ) {
-			$this->redirect_settings();
-		}
-
-		$rules = $this->load_rules_indexed();
-		unset( $rules[ $original_zip ] );
-		$rules[ $zip ] = array(
-			'zip'     => $zip,
-			'status'  => ( 'unavailable' === $status ) ? 'unavailable' : 'available',
-			'message' => $message,
-		);
-
-		update_option( PAC_OPTION_KEY, array_values( $rules ) );
-		$this->redirect_settings();
-	}
-
-	public function handle_delete_zip() {
-		$this->assert_admin_cap_and_nonce( 'pac_delete_zip' );
-
-		$zip = isset( $_POST['zip'] ) ? sanitize_text_field( wp_unslash( $_POST['zip'] ) ) : '';
-		if ( '' === $zip ) {
-			$this->redirect_settings();
-		}
-
-		$rules = $this->load_rules_indexed();
-		if ( isset( $rules[ $zip ] ) ) {
-			unset( $rules[ $zip ] );
-			update_option( PAC_OPTION_KEY, array_values( $rules ) );
-		}
-
-		$this->redirect_settings();
-	}
-
-	/**
-	 * Utilities
-	 */
-	private function assert_admin_cap_and_nonce( $nonce_action ) {
+	public function handle_form_submit() {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
-			wp_die( esc_html__( 'Insufficient permissions.', 'product-availability-checker' ) );
+			return;
 		}
-		check_admin_referer( $nonce_action, 'pac_nonce' );
-	}
-
-	private function redirect_settings() {
-		wp_safe_redirect( admin_url( 'admin.php?page=wc-settings&tab=pac_availability' ) );
-		exit;
-	}
-
-	private function load_rules_indexed() {
-		$rules = get_option( PAC_OPTION_KEY, array() );
-		if ( ! is_array( $rules ) ) {
-			$rules = array();
+		if ( ! isset( $_POST['_pac_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_pac_nonce'] ) ), self::NONCE_ACTION ) ) {
+			return;
 		}
-		$indexed = array();
-		foreach ( $rules as $rule ) {
-			if ( empty( $rule['zip'] ) ) { continue; }
-			$indexed[ $rule['zip'] ] = array(
-				'zip'     => sanitize_text_field( $rule['zip'] ),
-				'status'  => ( isset( $rule['status'] ) && 'unavailable' === $rule['status'] ) ? 'unavailable' : 'available',
-				'message' => isset( $rule['message'] ) ? sanitize_text_field( $rule['message'] ) : '',
+
+		$rules_input = isset( $_POST['rules'] ) && is_array( $_POST['rules'] ) ? $_POST['rules'] : array();
+		$sanitized = array();
+
+		foreach ( $rules_input as $row ) {
+			$zip = isset( $row['zip'] ) ? sanitize_text_field( wp_unslash( $row['zip'] ) ) : '';
+			$zip = strtoupper( preg_replace( '/[^A-Za-z0-9\- ]/', '', $zip ) );
+			$zip = substr( $zip, 0, 20 );
+			if ( '' === $zip ) {
+				continue;
+			}
+
+			$status = isset( $row['status'] ) ? sanitize_text_field( wp_unslash( $row['status'] ) ) : 'available';
+			$status = in_array( $status, array( 'available', 'unavailable' ), true ) ? $status : 'available';
+
+			$message = isset( $row['message'] ) ? sanitize_text_field( wp_unslash( $row['message'] ) ) : '';
+			$message = substr( $message, 0, 200 );
+
+			$sanitized[ $zip ] = array(
+				'status'  => $status,
+				'message' => $message,
 			);
 		}
-		return $indexed;
+
+		update_option( self::OPTION_KEY, $sanitized, false );
+	}
+
+	protected function get_rules() {
+		$rules = get_option( self::OPTION_KEY, array() );
+		return is_array( $rules ) ? $rules : array();
 	}
 }

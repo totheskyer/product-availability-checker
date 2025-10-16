@@ -34,4 +34,5 @@ function pac_run() {
 	$plugin = new PAC_Loader();
 	$plugin->run();
 }
-pac_run();
+
+add_action( 'plugins_loaded', 'pac_run', 20 );
